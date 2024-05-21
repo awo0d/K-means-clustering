@@ -1,63 +1,91 @@
 import random
 import numpy as np
 import pyqtgraph as pg
-from pyqtgraph.Qt import QtWidgets # 2D
-import pyqtgraph.opengl as gl # 3D
+from pyqtgraph.Qt import QtWidgets  # Importation pour le dessin en 2D
+import pyqtgraph.opengl as gl  # Importation pour le dessin en 3D
 
-# Samples content: (x, y) or (x, y, centroid_x, centroid_y) or (x, y, z) or
-# (x, y, z, centroid_x, centroid_y, centroid_z). Offset: for translating the 3D data.
 def draw(samples, windowSize=1000, offset=(0, 0, 0)):
-    random.seed(42)
+    """
+    La fonction principale pour dessiner les données de clustering en 2D ou 3D.
+    """
+    random.seed(42)  # Initialise le générateur de nombres aléatoires pour assurer la reproductibilité des couleurs des clusters.
+    
+    # Dictionnaire reliant la taille des échantillons au nombre de dimensions
     dimMap = {2: 2, 3: 3, 4: 2, 6: 3}
-    assert len(samples) > 0, "Received 0 samples."
-    assert len(samples[0]) in dimMap, "Unsupported samples size."
-    dim = dimMap[len(samples[0])]
+    assert len(samples) > 0, "Received 0 samples."  # Vérifie qu'il y a des échantillons
+    assert len(samples[0]) in dimMap, "Unsupported samples size."  # Vérifie que la taille des échantillons est supportée
+    dim = dimMap[len(samples[0])]  # Détermine le nombre de dimensions à partir de la taille des échantillons
+    
+    # Une fonction lambda pour créer des coordonnées pour le traçage. Renvoie un dictionnaire pour les données 2D.
     createCoord = lambda c: {"pos": c} if dim == 2 else c
 
-    # Grouping samples in clusters for faster rendering.
+    # Groupement des échantillons en clusters pour un rendu plus rapide
     centroidsMap, spotsList = {}, []
     for c in samples:
-        centroid = tuple(c[dim:])
+        centroid = tuple(c[dim:])  # Extrait les coordonnées du centroid
         if centroid not in centroidsMap:
-            centroidsMap[centroid] = len(centroidsMap)
-            spotsList.append([])
-        spotsList[centroidsMap[centroid]].append(createCoord(c[:dim]))
+            centroidsMap[centroid] = len(centroidsMap)  # Associe chaque centroid à un indice unique
+            spotsList.append([])  # Initialise une nouvelle liste pour ce cluster
+        spotsList[centroidsMap[centroid]].append(createCoord(c[:dim]))  # Ajoute les coordonnées du point au cluster correspondant
 
-    # Define specific colors for the clusters
-    colors = [(255, 0, 0, 255), (0, 0, 255, 255), (0, 255, 0, 255)]  # Red, Blue, Green
-    colormap = [colors[i % len(colors)] for i in range(len(centroidsMap))]
+    # Définition des couleurs spécifiques pour les clusters
+    colors = [(255, 0, 0, 255), (0, 0, 255, 255), (0, 255, 0, 255)]  # Rouge, Bleu, Vert
+    colormap = [colors[i % len(colors)] for i in range(len(centroidsMap))]  # Applique les couleurs de manière cyclique aux clusters
 
-    # Adding centroids, if present:
+    # Ajout des centroids, si présents
     if () not in centroidsMap:
-        spotsList.append([createCoord(c) for c in centroidsMap])
-        colormap.append((255, 255, 255, 255))  # White for centroids
+        spotsList.append([createCoord(c) for c in centroidsMap])  # Ajoute les centroids à la liste des spots
+        colormap.append((255, 255, 255, 255))  # Blanc pour les centroids
 
-    # Creating a graphical context:
-    app = pg.mkQApp("PyQtGraph app")
+    # Création d'un contexte graphique
+    app = pg.mkQApp("PyQtGraph app")  # Crée une instance de l'application PyQtGraph
+    
     if dim == 2:
+        # Configuration pour une vue 2D
         w = QtWidgets.QMainWindow()
         view = pg.GraphicsLayoutWidget()
         w.setCentralWidget(view)
-        p = view.addPlot()
+        p = view.addPlot()  # Ajoute une zone de traçage
     else:
+        # Configuration pour une vue 3D
         w = gl.GLViewWidget()
-        w.setCameraPosition(distance=20.)
+        w.setCameraPosition(distance=20.)  # Positionne la caméra
         g = gl.GLGridItem()
-        w.addItem(g)
-    w.setWindowTitle("Clustering data")
-    w.resize(windowSize, windowSize)
+        w.addItem(g)  # Ajoute une grille pour la référence visuelle
+    
+    w.setWindowTitle("Clustering data")  # Définit le titre de la fenêtre
+    w.resize(windowSize, windowSize)  # Redimensionne la fenêtre
 
-    # Drawing:
+    # Dessin des clusters
     for i in range(len(spotsList)):
         if dim == 2:
-            brush = pg.mkBrush(colormap[i])
-            p.addItem(pg.ScatterPlotItem(spots=spotsList[i], brush=brush, size=10., pxMode=True))
+            brush = pg.mkBrush(colormap[i])  # Crée un pinceau avec la couleur du cluster
+            p.addItem(pg.ScatterPlotItem(spots=spotsList[i], brush=brush, size=10., pxMode=True))  # Ajoute les points au graphique 2D
         else:
-            pos_array = np.array([spot for spot in spotsList[i]])
-            s = gl.GLScatterPlotItem(pos=pos_array, color=colormap[i], size=10., pxMode=True)
-            s.translate(*offset)
+            pos_array = np.array([spot for spot in spotsList[i]])  # Convertit les spots en un tableau numpy
+            s = gl.GLScatterPlotItem(pos=pos_array, color=colormap[i], size=10., pxMode=True)  # Crée un élément de dispersion pour le graphique 3D
+            s.translate(*offset)  # Applique un décalage si nécessaire
             if i < len(spotsList) - 1:
-                s.setGLOptions("translucent")
-            w.addItem(s)
-    w.show()
-    pg.exec()
+                s.setGLOptions("translucent")  # Rend les points translucides sauf le dernier
+            w.addItem(s)  # Ajoute les points au graphique 3D
+    
+    w.show()  # Affiche la fenêtre
+    pg.exec()  # Exécute la boucle d'événements PyQtGraph pour afficher les graphiques
+
+# Exemple d'appel de la fonction draw
+# draw(samples, windowSize=1000, offset=(0, 0, 0)) 
+
+"""
+Fonctionnalités :
+- draw(samples, windowSize=1000, offset=(0, 0, 0)): La fonction principale pour dessiner les données de clustering en 2D ou 3D.
+- random.seed(42): Initialise le générateur de nombres aléatoires pour assurer la reproductibilité des couleurs des clusters.
+- dimMap: Dictionnaire reliant la taille des échantillons au nombre de dimensions.
+- createCoord(c): Une fonction lambda pour créer des coordonnées pour le traçage. Renvoie un dictionnaire pour les données 2D.
+- centroidsMap: Un dictionnaire pour mapper les centroids aux indices de clusters.
+- spotsList: Une liste de listes où chaque sous-liste contient les points appartenant à un cluster.
+- colors et colormap:
+    - colors: Une liste de couleurs définies pour les clusters (rouge, bleu, vert).
+    - colormap: Une liste des couleurs appliquées aux clusters, cyclant à travers les couleurs définies.
+- app = pg.mkQApp("PyQtGraph app"): Crée une instance de l'application PyQtGraph.
+- w.show() et pg.exec(): Affiche la fenêtre et exécute la boucle d'événements PyQtGraph pour afficher les graphiques.
+"""
